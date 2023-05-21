@@ -6,6 +6,7 @@
 // Define Pins
 const int NEOMATRIX_PIN = 6;  // digital pin
 
+// Helper const values
 const int NEOMATRIX_DIMENSION = 8;
 
 // Define I/O
@@ -21,6 +22,8 @@ const uint16_t PASTEL_TEAL = matrix.Color(195, 216, 209);
 const uint16_t PASTEL_PINK = matrix.Color(245, 207, 194);
 const uint16_t SALMON = matrix.Color(254, 183, 161);
 const uint16_t COLORS[MAX_NUMBER_OF_COLORS] = { SEA_GREEN, SUN_ORANGE, PASTEL_TEAL, PASTEL_PINK, SALMON };
+
+// Helper variables
 int counter = 0;
 
 void setup() {
