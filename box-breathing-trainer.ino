@@ -38,14 +38,27 @@ uint16_t currentColor;
 // Helper variables for the HOLD cycle
 unsigned long millisValueOnHoldCycleStart = 0;
 unsigned long currentMillisValue = 0;
+unsigned long millisAfterLastHoldLedToggleOn = 0;
 int countOfLightsOnForCurrentHoldCycle = 0;
+
+void restartTheCurrentBoxBreathingRingIteration() {
+  Serial.println("restarting ring iteration");
+  // restart all helper variables
+  millisValueOnHoldCycleStart = 0;
+  currentMillisValue = 0;
+  countOfLightsOnForCurrentHoldCycle = 0;
+}
 
 void setState(State newState) {
   prevState = currentState;
   currentState = newState;
   if (newState == HOLD) {
     millisValueOnHoldCycleStart = millis();
+    millisAfterLastHoldLedToggleOn = millisValueOnHoldCycleStart;
     countOfLightsOnForCurrentHoldCycle = 0;
+  }
+  if(newState == INHALE) {
+    restartTheCurrentBoxBreathingRingIteration();
   }
 }
 
@@ -58,22 +71,11 @@ void setup() {
   matrix.setBrightness(5);
 }
 
-void restartTheCurrentBoxBreathingRingIteration() {
-  // restart all helper variables
-  millisValueOnHoldCycleStart = 0;
-  currentMillisValue = 0;
-  countOfLightsOnForCurrentHoldCycle = 0; 
-
-  // set state back to INHALE
-  setState(INHALE);
-}
-
 int getBreathingSensorReading() {
   // value between 0-1023
   int potentiometerValue = analogRead(POTENTIOMETER_PIN);
   // make the potentiometer reading a number between 0-7 (range of 8)
   int numberOfPinsToLightUp = potentiometerValue / 128;
-  Serial.println(potentiometerValue);
   return numberOfPinsToLightUp;
 }
 
@@ -83,7 +85,7 @@ void doInhaleCycle() {
     matrix.drawPixel(0, i, currentColor);
   }
   if (sensorReading == NEOMATRIX_DIMENSION - 1) {  // if we completed the cycle, change the state
-    setState(EXHALE);
+    setState(HOLD);
   }
 }
 
@@ -101,7 +103,7 @@ bool isHoldWithinAcceptableRange(int sensorReading, int minAcceptableValue, int 
   return sensorReading >= minAcceptableValue && sensorReading <= maxAcceptableValue;
 }
 
-void doHoldCycle() { // HOLD cycle lasts 4 seconds each
+void doHoldCycle() {  // HOLD cycle lasts 4 seconds each
   currentMillisValue = millis();
   unsigned long ellapsedMsSinceHoldCycleStarted = currentMillisValue - millisValueOnHoldCycleStart;
   // we are not done with the HOLD cycle
@@ -119,27 +121,28 @@ void doHoldCycle() { // HOLD cycle lasts 4 seconds each
     bool isBreathingHoldRangeAcceptable = isHoldWithinAcceptableRange(sensorReading, minAcceptableValue, maxAcceptableValue);
     if (isBreathingHoldRangeAcceptable) {
       // check if 0.5 seconds have ellapsed since the last time we lit up another LED
-      // we give 20ms buffer for Arduino processing
-      bool hasHalfASecondEllapsed = ellapsedMsSinceHoldCycleStarted % 500 >= 0 && ellapsedMsSinceHoldCycleStarted % 500 <= 20;
-      if(hasHalfASecondEllapsed)
-      {
+      bool hasHalfASecondEllapsedSinceLastLedToggleOn = currentMillisValue - millisAfterLastHoldLedToggleOn > 500; // 500 ms
+      if (hasHalfASecondEllapsedSinceLastLedToggleOn) {
         countOfLightsOnForCurrentHoldCycle = countOfLightsOnForCurrentHoldCycle + 1;
-        if(countOfLightsOnForCurrentHoldCycle > NEOMATRIX_DIMENSION)
-        {
-          if(prevState == INHALE)
-          {
+        Serial.println("Turning ON another LED");
+        millisAfterLastHoldLedToggleOn = currentMillisValue;
+        if (countOfLightsOnForCurrentHoldCycle > NEOMATRIX_DIMENSION) {
+          if (prevState == INHALE) {
             setState(EXHALE);
-          }
-          else if(prevState == EXHALE)
-          {
+          } else if (prevState == EXHALE) {
             setState(INHALE);
           }
         }
-      }     
+      }
+    } else {
+      // user is not holding - restart at INHALE
+      setState(INHALE);
     }
-    else{
-      // user is not holding 
-      restartTheCurrentBoxBreathingRingIteration();
+  } else {
+    if (prevState == INHALE) {
+      setState(EXHALE);
+    } else if (prevState == EXHALE) {
+      setState(INHALE);
     }
   }
 }
@@ -151,16 +154,23 @@ void showPreviousStatesProgress() {
       {
         for (int i = 0; i <= NEOMATRIX_DIMENSION - 1; i++) {
           matrix.drawPixel(0, i, currentColor);
-          matrix.drawPixel(i, 0, currentColor);
+          matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, currentColor);
         }
         break;
       }
     case HOLD:
       {
-        for (int i = 0; i <= NEOMATRIX_DIMENSION - 1; i++) {
+        int currentRow = prevState == INHALE ? NEOMATRIX_DIMENSION - 1 : 0;
+        for (int i = 0; i < countOfLightsOnForCurrentHoldCycle; i++) {
+          int currentColumn = prevState == INHALE ? i : NEOMATRIX_DIMENSION - 1 - i;
+          // update the right row and column depending on prevState
+          matrix.drawPixel(currentColumn, currentRow, currentColor);
+        }
+
+        for (int i = 0; i < NEOMATRIX_DIMENSION; i++) {
           matrix.drawPixel(0, i, currentColor);
-          matrix.drawPixel(i, 0, currentColor);
           if (prevState == EXHALE) {
+            matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, currentColor);
             matrix.drawPixel(NEOMATRIX_DIMENSION - 1, i, currentColor);
           }
         }
@@ -172,28 +182,29 @@ void showPreviousStatesProgress() {
   }
 }
 
-  void loop() {
-    showPreviousStatesProgress();
-    switch (currentState) {
-      case INHALE:
-        {
-          doInhaleCycle();
-          break;
-        }
-      case EXHALE:
-        {
-          doExhaleCycle();
-          break;
-        }
-      case HOLD:
-        {
-          Serial.println("HOLD");
-          break;
-        }
-      default:
-        Serial.println("Unrecognized state");
-    }
-
-    matrix.show();
-    delay(100);  // delay between reads
+void loop() {
+  matrix.clear();
+  showPreviousStatesProgress();
+  switch (currentState) {
+    case INHALE:
+      {
+        doInhaleCycle();
+        break;
+      }
+    case EXHALE:
+      {
+        doExhaleCycle();
+        break;
+      }
+    case HOLD:
+      {
+        doHoldCycle();
+        break;
+      }
+    default:
+      Serial.println("Unrecognized state");
   }
+
+  matrix.show();
+  delay(100);  // delay between reads
+}
