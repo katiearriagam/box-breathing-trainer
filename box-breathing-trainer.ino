@@ -3,6 +3,22 @@
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
 
+class BreathingCycle {
+public:
+  // for an 8x8 matrix, we always have a max of 28 coordinates for the cycle
+  int xCoordinates[28];
+  int yCoordinates[28];
+  int numberOfCoordinatesForCycle;
+
+  BreathingCycle(int xCurrentCoordinates[28], int yCurrentCoordinates[28], int numberOfCoordinateForCurrentCycle) {
+    numberOfCoordinatesForCycle = numberOfCoordinateForCurrentCycle;
+    for (int i = 0; i < numberOfCoordinateForCurrentCycle; i++) {
+      xCoordinates[i] = xCurrentCoordinates[i];
+      yCoordinates[i] = yCurrentCoordinates[i];
+    }
+  }
+};
+
 // Define Pins
 const int NEOMATRIX_PIN = 6;       // digital pin
 const int POTENTIOMETER_PIN = A0;  // analog pin
@@ -15,6 +31,7 @@ enum State {
   EXHALE,
   HOLD
 };
+const int NUMBER_OF_CYCLES_TO_COMPLETE = 4;
 
 // Define I/O
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(NEOMATRIX_DIMENSION, NEOMATRIX_DIMENSION, NEOMATRIX_PIN,
@@ -28,12 +45,34 @@ const uint16_t SUN_ORANGE = matrix.Color(240, 188, 105);
 const uint16_t PASTEL_TEAL = matrix.Color(195, 216, 209);
 const uint16_t PASTEL_PINK = matrix.Color(245, 207, 194);
 const uint16_t SALMON = matrix.Color(254, 183, 161);
-const uint16_t COLORS[MAX_NUMBER_OF_COLORS] = { SEA_GREEN, SUN_ORANGE, PASTEL_TEAL, PASTEL_PINK, SALMON };
+const uint16_t COLORS[MAX_NUMBER_OF_COLORS] = { SEA_GREEN, SUN_ORANGE, PASTEL_PINK, SALMON, PASTEL_TEAL };
 
 // Helper variables
 State currentState = INHALE;
 State prevState = HOLD;
-uint16_t currentColor;
+int numberOfCyclesCompleted = 0;
+int prevNumberOfCyclesCompleted = 0;
+
+// constant definitions for the coordinates
+const int numberOfCoordinatesCycle1 = 4;
+const int xCoordinatesCycle1[numberOfCoordinatesCycle1] = { 3, 3, 4, 4 };
+const int yCoordinatesCycle1[numberOfCoordinatesCycle1] = { 3, 4, 3, 4 };
+const int numberOfCoordinatesCycle2 = 12;
+const int xCoordinatesCycle2[numberOfCoordinatesCycle2] = { 2, 3, 4, 5, 2, 5, 2, 5, 2, 3, 4, 5 };
+const int yCoordinatesCycle2[numberOfCoordinatesCycle2] = { 2, 2, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5 };
+const int numberOfCoordinatesCycle3 = 20;
+const int xCoordinatesCycle3[numberOfCoordinatesCycle3] = { 1, 2, 3, 4, 5, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1, 2, 3, 4, 5, 6 };
+const int yCoordinatesCycle3[numberOfCoordinatesCycle3] = { 1, 1, 1, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 6, 6, 6, 6 };
+const int numberOfCoordinatesCycle4 = 28;
+const int xCoordinatesCycle4[numberOfCoordinatesCycle4] = { 0, 1, 2, 3, 4, 5, 6, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 1, 2, 3, 4, 5, 6, 7 };
+const int yCoordinatesCycle4[numberOfCoordinatesCycle4] = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7 };
+
+BreathingCycle cycles[NUMBER_OF_CYCLES_TO_COMPLETE] = {
+  BreathingCycle(xCoordinatesCycle1, yCoordinatesCycle1, numberOfCoordinatesCycle1),
+  BreathingCycle(xCoordinatesCycle2, yCoordinatesCycle2, numberOfCoordinatesCycle2),
+  BreathingCycle(xCoordinatesCycle3, yCoordinatesCycle3, numberOfCoordinatesCycle3),
+  BreathingCycle(xCoordinatesCycle4, yCoordinatesCycle4, numberOfCoordinatesCycle4),
+};
 
 // Helper variables for the HOLD cycle
 unsigned long millisValueOnHoldCycleStart = 0;
@@ -42,7 +81,6 @@ unsigned long millisAfterLastHoldLedToggleOn = 0;
 int countOfLightsOnForCurrentHoldCycle = 0;
 
 void restartTheCurrentBoxBreathingRingIteration() {
-  Serial.println("restarting ring iteration");
   // restart all helper variables
   millisValueOnHoldCycleStart = 0;
   currentMillisValue = 0;
@@ -57,7 +95,7 @@ void setState(State newState) {
     millisAfterLastHoldLedToggleOn = millisValueOnHoldCycleStart;
     countOfLightsOnForCurrentHoldCycle = 0;
   }
-  if(newState == INHALE) {
+  if (newState == INHALE) {
     restartTheCurrentBoxBreathingRingIteration();
   }
 }
@@ -82,7 +120,7 @@ int getBreathingSensorReading() {
 void doInhaleCycle() {
   int sensorReading = getBreathingSensorReading();
   for (int i = 0; i <= sensorReading; i++) {
-    matrix.drawPixel(0, i, currentColor);
+    matrix.drawPixel(0, i, COLORS[numberOfCyclesCompleted]);
   }
   if (sensorReading == NEOMATRIX_DIMENSION - 1) {  // if we completed the cycle, change the state
     setState(HOLD);
@@ -92,7 +130,7 @@ void doInhaleCycle() {
 void doExhaleCycle() {
   int sensorReading = getBreathingSensorReading();
   for (int i = NEOMATRIX_DIMENSION - 1; i >= sensorReading; i--) {
-    matrix.drawPixel(NEOMATRIX_DIMENSION - 1, i, currentColor);
+    matrix.drawPixel(NEOMATRIX_DIMENSION - 1, i, COLORS[numberOfCyclesCompleted]);
   }
   if (sensorReading == 0) {  // if we completed the cycle, change the state
     setState(HOLD);
@@ -121,10 +159,9 @@ void doHoldCycle() {  // HOLD cycle lasts 4 seconds each
     bool isBreathingHoldRangeAcceptable = isHoldWithinAcceptableRange(sensorReading, minAcceptableValue, maxAcceptableValue);
     if (isBreathingHoldRangeAcceptable) {
       // check if 0.5 seconds have ellapsed since the last time we lit up another LED
-      bool hasHalfASecondEllapsedSinceLastLedToggleOn = currentMillisValue - millisAfterLastHoldLedToggleOn > 500; // 500 ms
+      bool hasHalfASecondEllapsedSinceLastLedToggleOn = currentMillisValue - millisAfterLastHoldLedToggleOn > 500;  // 500 ms
       if (hasHalfASecondEllapsedSinceLastLedToggleOn) {
         countOfLightsOnForCurrentHoldCycle = countOfLightsOnForCurrentHoldCycle + 1;
-        Serial.println("Turning ON another LED");
         millisAfterLastHoldLedToggleOn = currentMillisValue;
         if (countOfLightsOnForCurrentHoldCycle > NEOMATRIX_DIMENSION) {
           if (prevState == INHALE) {
@@ -142,19 +179,19 @@ void doHoldCycle() {  // HOLD cycle lasts 4 seconds each
     if (prevState == INHALE) {
       setState(EXHALE);
     } else if (prevState == EXHALE) {
+      numberOfCyclesCompleted = numberOfCyclesCompleted + 1;
       setState(INHALE);
     }
   }
 }
 
-void showPreviousStatesProgress() {
-  currentColor = COLORS[2];
+void showPreviousStatesProgressForCurrentCycle() {
   switch (currentState) {
     case EXHALE:  // previous states are 1 INHALE and 1 HOLD
       {
         for (int i = 0; i <= NEOMATRIX_DIMENSION - 1; i++) {
-          matrix.drawPixel(0, i, currentColor);
-          matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, currentColor);
+          matrix.drawPixel(0, i, COLORS[numberOfCyclesCompleted]);
+          matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, COLORS[numberOfCyclesCompleted]);
         }
         break;
       }
@@ -164,14 +201,14 @@ void showPreviousStatesProgress() {
         for (int i = 0; i < countOfLightsOnForCurrentHoldCycle; i++) {
           int currentColumn = prevState == INHALE ? i : NEOMATRIX_DIMENSION - 1 - i;
           // update the right row and column depending on prevState
-          matrix.drawPixel(currentColumn, currentRow, currentColor);
+          matrix.drawPixel(currentColumn, currentRow, COLORS[numberOfCyclesCompleted]);
         }
 
         for (int i = 0; i < NEOMATRIX_DIMENSION; i++) {
-          matrix.drawPixel(0, i, currentColor);
+          matrix.drawPixel(0, i, COLORS[numberOfCyclesCompleted]);
           if (prevState == EXHALE) {
-            matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, currentColor);
-            matrix.drawPixel(NEOMATRIX_DIMENSION - 1, i, currentColor);
+            matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, COLORS[numberOfCyclesCompleted]);
+            matrix.drawPixel(NEOMATRIX_DIMENSION - 1, i, COLORS[numberOfCyclesCompleted]);
           }
         }
         break;
@@ -182,29 +219,44 @@ void showPreviousStatesProgress() {
   }
 }
 
+void showCompletedCycles() {
+  for (int n = 0; n < numberOfCyclesCompleted; n++) {
+    BreathingCycle cycleToShow = cycles[n];
+    for (int m = 0; m < cycleToShow.numberOfCoordinatesForCycle; m++) {
+      int column = cycleToShow.xCoordinates[m];
+      int row = cycleToShow.yCoordinates[m];
+      matrix.drawPixel(column, row, COLORS[n]);
+    }
+  }
+}
+
 void loop() {
   matrix.clear();
-  showPreviousStatesProgress();
-  switch (currentState) {
-    case INHALE:
-      {
-        doInhaleCycle();
-        break;
-      }
-    case EXHALE:
-      {
-        doExhaleCycle();
-        break;
-      }
-    case HOLD:
-      {
-        doHoldCycle();
-        break;
-      }
-    default:
-      Serial.println("Unrecognized state");
+  showCompletedCycles();
+  // we are performing box breathing (have missing cycles to complete)
+  if (numberOfCyclesCompleted < NUMBER_OF_CYCLES_TO_COMPLETE) {
+    showPreviousStatesProgressForCurrentCycle();
+    showCompletedCycles();
+    switch (currentState) {
+      case INHALE:
+        {
+          doInhaleCycle();
+          break;
+        }
+      case EXHALE:
+        {
+          doExhaleCycle();
+          break;
+        }
+      case HOLD:
+        {
+          doHoldCycle();
+          break;
+        }
+      default:
+        Serial.println("Unrecognized state");
+    }
   }
-
   matrix.show();
   delay(100);  // delay between reads
 }
