@@ -2,6 +2,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
+#include <Button.h>
 
 class BreathingCycle {
 public:
@@ -22,6 +23,7 @@ public:
 // Define Pins
 const int NEOMATRIX_PIN = 6;       // digital pin
 const int POTENTIOMETER_PIN = A0;  // analog pin
+const int BUTTON_PIN = 12;         // digital pin
 
 // Helper const values
 const int NEOMATRIX_DIMENSION = 8;
@@ -37,6 +39,9 @@ const int NUMBER_OF_CYCLES_TO_COMPLETE = 4;
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(NEOMATRIX_DIMENSION, NEOMATRIX_DIMENSION, NEOMATRIX_PIN,
                                                NEO_MATRIX_BOTTOM + NEO_MATRIX_LEFT + NEO_MATRIX_ROWS + NEO_MATRIX_PROGRESSIVE,
                                                NEO_GRB + NEO_KHZ800);
+
+// Define button
+Button button(BUTTON_PIN, INPUT_PULLUP);
 
 // Define colors
 const int MAX_NUMBER_OF_COLORS = 5;
@@ -230,8 +235,23 @@ void showCompletedCycles() {
   }
 }
 
+void restartBoxBreathing() {
+  // restart the current cycle
+  restartTheCurrentBoxBreathingRingIteration();
+  // restart the finite state machine
+  currentState = INHALE;
+  prevState = HOLD;
+  numberOfCyclesCompleted = 0;
+  prevNumberOfCyclesCompleted = 0;
+}
+
 void loop() {
   matrix.clear();
+  int buttonAction = button.checkButtonAction();
+  if (buttonAction == Button::CLICKED) {
+    restartBoxBreathing();
+  }
+
   showCompletedCycles();
   // we are performing box breathing (have missing cycles to complete)
   if (numberOfCyclesCompleted < NUMBER_OF_CYCLES_TO_COMPLETE) {
@@ -258,5 +278,4 @@ void loop() {
     }
   }
   matrix.show();
-  delay(100);  // delay between reads
 }
