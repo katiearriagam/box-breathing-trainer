@@ -138,11 +138,12 @@ void playSound() {
     tone(SPEAKER_PIN, MELODY[note], duration);
 
     // to distinguish the notes, set a minimum time between them.
-    // the note's duration + 30% seems to work well:
+    // the note's duration + 30% seems to work well
+    // logic from: https://github.com/hibit-dev/buzzer/tree/master/lib
     int pauseBetweenNotes = duration * 1.30 * PAUSE_BETWEEN[note];
     delay(pauseBetweenNotes);
 
-    //stop the tone playing:
+    // stop the tone playing
     noTone(SPEAKER_PIN);
   }
 }
