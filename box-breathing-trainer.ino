@@ -6,6 +6,20 @@
 #include <Adafruit_LiquidCrystal.h>
 #include <pitches.h>
 
+/**
+  Box breathing trainer - Katie Arriaga Maldonado
+  This program guides the user through 4 cycles of a box breathing exercise.
+  It implements a finite state machine to detect and transition into each
+  phase of box breathing.
+
+  The program leverages a stretch sensor to measure the level of expansion around
+  the user's diaphragm and provides visual guidance through a NeoMatrix with 8x8 
+  dimensions.
+
+  Made for HCDE 539 Physical Computing and Prototyping Spring 2023
+  Supervised by Andrew Davidson 
+*/
+
 class BreathingCycle {
 public:
   // for an 8x8 matrix, we always have a max of 28 coordinates for the cycle
@@ -13,6 +27,7 @@ public:
   int yCoordinates[28];
   int numberOfCoordinatesForCycle;
 
+  // constructor for a breathing cycle
   BreathingCycle(int xCurrentCoordinates[28], int yCurrentCoordinates[28], int numberOfCoordinateForCurrentCycle) {
     numberOfCoordinatesForCycle = numberOfCoordinateForCurrentCycle;
     for (int i = 0; i < numberOfCoordinateForCurrentCycle; i++) {
@@ -38,13 +53,6 @@ enum State {
   INHALE,
   EXHALE,
   HOLD
-};
-enum SetupState {
-  WELCOME,
-  SETUP_INHALE,
-  SETUP_EXHALE,
-  FINISHED,
-  FINISHED_CONFIRMED
 };
 
 const int NUMBER_OF_CYCLES_TO_COMPLETE = 4;
@@ -93,7 +101,6 @@ State currentState = INHALE;
 State prevState = HOLD;
 int numberOfCyclesCompleted = 0;
 int prevNumberOfCyclesCompleted = 0;
-SetupState setupState = WELCOME;
 bool hasPlayedSound = false;
 unsigned long millisValueOnInhaleCycleStart = 0;
 unsigned long millisValueOnExhaleCycleStart = 0;
@@ -125,16 +132,16 @@ void playSound() {
   int size = sizeof(DURATIONS) / sizeof(int);
 
   for (int note = 0; note < size; note++) {
-    //to calculate the note duration, take one second divided by the note type.
-    //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+    // to calculate the note duration, take one second divided by the note type.
+    // e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int duration = 1000 / DURATIONS[note];
     tone(SPEAKER_PIN, MELODY[note], duration);
 
-    //to distinguish the notes, set a minimum time between them.
-    //the note's duration + 30% seems to work well:
-    int pauseBetweenNotes = duration * 1.30 * PAUSE_BETWEEN[note] ;
+    // to distinguish the notes, set a minimum time between them.
+    // the note's duration + 30% seems to work well:
+    int pauseBetweenNotes = duration * 1.30 * PAUSE_BETWEEN[note];
     delay(pauseBetweenNotes);
-    
+
     //stop the tone playing:
     noTone(SPEAKER_PIN);
   }
@@ -152,6 +159,7 @@ void restartTheCurrentBoxBreathingRingIteration() {
 }
 
 void setState(State newState) {
+  // update the phase of the cycle we are currently performing
   prevState = currentState;
   currentState = newState;
   prevStretchDelta = getBreathingSensorReadingDelta();
@@ -163,7 +171,7 @@ void setState(State newState) {
   if (newState == INHALE) {
     restartTheCurrentBoxBreathingRingIteration();
   }
-  if(newState == EXHALE) {
+  if (newState == EXHALE) {
     millisValueOnExhaleCycleStart = millis();
     countOfLightsOnForCurrentPhase = 0;
   }
@@ -176,16 +184,19 @@ void setup() {
   matrix.begin();
   matrix.setBrightness(5);
   matrix.clear();
-  setupState = WELCOME;
   prevStretchSensorValue = analogRead(STRETCH_SENSOR_PIN);
   pinMode(SPEAKER_PIN, OUTPUT);
 }
 
 int getBreathingSensorReadingDelta() {
+  /**
+  The commented code below is useful to test the finite state machine with an analog sensor
+  to isolate the logic from the sensor performance.
   // value between 0-1023
-  // int potentiometerValue = analogRead(POTENTIOMETER_PIN);
+  int potentiometerValue = analogRead(POTENTIOMETER_PIN);
   // make the potentiometer reading a number between 0-7 (range of 8)
-  // int numberOfPinsToLightUp = potentiometerValue / 128;
+  int numberOfPinsToLightUp = potentiometerValue / 128;
+  */
   double stretchSensorValue = analogRead(STRETCH_SENSOR_PIN);
   double delta = stretchSensorValue - prevStretchSensorValue;
   return delta;
@@ -306,8 +317,8 @@ void showPreviousStatesProgressForCurrentCycle() {
     case EXHALE:  // previous states are 1 INHALE and 1 HOLD
       {
         for (int i = 0; i <= NEOMATRIX_DIMENSION - 1; i++) {
-          matrix.drawPixel(0, i, COLORS[numberOfCyclesCompleted]); // INHALE
-          matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, COLORS[numberOfCyclesCompleted]); // HOLD
+          matrix.drawPixel(0, i, COLORS[numberOfCyclesCompleted]);                        // INHALE
+          matrix.drawPixel(i, NEOMATRIX_DIMENSION - 1, COLORS[numberOfCyclesCompleted]);  // HOLD
         }
         break;
       }
@@ -347,7 +358,6 @@ void showCompletedCycles() {
 }
 
 void restartBoxBreathing() {
-  setupState = WELCOME;
   // restart the current cycle
   restartTheCurrentBoxBreathingRingIteration();
   // restart the finite state machine
@@ -388,10 +398,8 @@ void performBoxBreathing() {
       default:
         Serial.println("Unrecognized state");
     }
-  }
-  else {
-    if(hasPlayedSound == false)
-    {
+  } else {
+    if (hasPlayedSound == false) {
       playSound();
       hasPlayedSound = true;
     }
